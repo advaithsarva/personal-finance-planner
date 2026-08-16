@@ -1,0 +1,14 @@
+{
+  "name": "moneyport",
+  "version": "1.0.0",
+  "description": "Salary, savings and investment planning: figures computed in code, commentary from an LLM that is shown those figures.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js",
+    "verify": "node verify_tests.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": { "express": "^4.21.2" },
+  "license": "MIT"
+}

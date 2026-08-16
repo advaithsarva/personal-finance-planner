@@ -1,0 +1,77 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MoneyPort</title>
+<style>
+  :root { color-scheme: light dark; --line: #8883; }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 46rem; margin: 3rem auto; padding: 0 1rem; }
+  h1 { margin: 0 0 .25rem; } p.sub { margin: 0 0 2rem; opacity: .7; }
+  form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  input, select, button { font: inherit; padding: .5rem; border: 1px solid var(--line); border-radius: .4rem; background: none; color: inherit; }
+  button { cursor: pointer; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; }
+  td, th { text-align: left; padding: .4rem 0; border-bottom: 1px solid var(--line); }
+  td:last-child, th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  td.track { width: 99%; padding: .4rem 1rem; }  /* let the bar column take the slack */
+  td:first-child { white-space: nowrap; }
+  .bar { background: currentColor; opacity: .45; height: .85rem; min-width: 2px; border-radius: 2px; }
+  .basis, .status { opacity: .65; font-size: .875rem; }
+  .advice { white-space: pre-wrap; border-left: 3px solid var(--line); padding-left: 1rem; margin: 1.5rem 0; }
+  .err { color: #c33; }
+</style>
+
+<h1>MoneyPort</h1>
+<p class="sub">Salary, savings and investment planning. Every figure is computed in code; the commentary is written by a model that is shown those figures and told not to change them.</p>
+
+<form id="f">
+  <select name="type">
+    <option value="salary">Salary (per month)</option>
+    <option value="savings">Savings (lump sum)</option>
+    <option value="investment">Investment (lump sum)</option>
+  </select>
+  <input name="amount" type="number" min="1" step="1" value="80000" required aria-label="Amount in INR">
+  <input name="years" type="number" min="1" max="40" value="5" aria-label="Years" title="Years">
+  <input name="age" type="number" min="18" max="100" value="30" aria-label="Age" title="Age">
+  <button>Plan</button>
+</form>
+
+<div id="out"></div>
+
+<script>
+const out = document.getElementById('out');
+const fmt = n => '₹' + n.toLocaleString('en-IN');
+const label = k => k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase());
+
+document.getElementById('f').onsubmit = async e => {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  out.innerHTML = '<p class="status">Working…</p>';
+
+  const r = await fetch('/api/finance', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: d.type, amount: +d.amount, years: +d.years, age: +d.age }),
+  });
+  const j = await r.json();
+  if (!r.ok) { out.innerHTML = `<p class="err">${j.error}</p>`; return; }
+
+  const rows = Object.entries(j.figures)
+    .map(([k, v]) => `<tr><td>${label(k)}</td><td>${k === 'blendedReturn' ? v + '%' : (k.startsWith('months') ? v : fmt(v))}</td></tr>`)
+    .join('');
+
+  const peak = Math.max(...j.projection.map(p => p.value ?? p.monthly));
+  const bars = j.projection.map(p => {
+    const v = p.value ?? p.monthly;
+    return `<tr><td>Year ${p.year}</td>
+      <td class="track"><div class="bar" style="width:${(v / peak * 100).toFixed(1)}%"></div></td>
+      <td>${fmt(v)}</td></tr>`;
+  }).join('');
+
+  out.innerHTML = `
+    <p class="basis">${j.basis}</p>
+    <table>${rows}</table>
+    <table>${bars}</table>
+    ${j.advice ? `<div class="advice">${j.advice}</div>` : ''}
+    <p class="status">Advice: ${j.adviceStatus}${j.adviceMs ? ` · ${j.adviceMs} ms · ${j.adviceTokens} tokens` : ''}</p>`;
+};
+</script>
